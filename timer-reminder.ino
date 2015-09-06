@@ -4,46 +4,50 @@
 #include <Temboo.h>
 #include "TembooAccount.h" // contains Temboo account information, as described below
 
-const int buttonPin = 2;
+volatile int buttonPin = 7;
 const int ledPin = 13;
 
+boolean other = 0;
+int appState = 0;
+int buttonState = 0;         // current state of the button
+int lastButtonState = 0; 
+
 String startTime;
-
-int ledState = LOW;
-boolean appActive = false;
-
-Bounce bouncer = Bounce();
-int lastButtonState = LOW;
 
 void setup() {
   Serial.begin(9600);
   Bridge.begin();
   
   pinMode(ledPin, OUTPUT);
+  attachInterrupt(4, stop, RISING);
+}
 
-  pinMode(buttonPin, INPUT_PULLUP);
-  bouncer.attach(buttonPin);
-  bouncer.interval(5);
+void stop() {
+  Serial.println("STOP");
 }
 
 void loop() {
 
-  bouncer.update();
+  buttonState = digitalRead(buttonPin);
 
-  int currentButtonState = bouncer.read();
-
-  if (bouncer.rose()) {
-    if (appActive == false) {
-      digitalWrite(ledPin, HIGH);
+  if ((buttonState != lastButtonState) && (buttonState == HIGH)) {
+    appState = digitalRead(led);
+    digitalWrite(led, !appState);
+    if (other == false) {
+      digitalWrite(led, HIGH);
       startTime = getNow();
     } else {
-      digitalWrite(ledPin, LOW);
+      digitalWrite(led, LOW);
       String stopTime = getNow();
-      addTimeGroup(startTime, stopTime);
+      // addTimeGroup(startTime, stopTime);
+      Serial.println(startTime);
+      Serial.println(stopTime);
     }
-
-    appActive = !appActive;
+    other = !other;
+  } else {
+    Serial.println("off"); 
   }
+  lastButtonState = buttonState;
 
   if (appActive == false ) {
     // do reminder stuff here;
