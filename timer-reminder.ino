@@ -1,58 +1,89 @@
-#include <Bounce2.h>
+#include <Adafruit_NeoPixel.h>
 #include <Process.h>
 #include <Bridge.h>
 #include <Temboo.h>
 #include "TembooAccount.h" // contains Temboo account information, as described below
 
-volatile int buttonPin = 7;
+volatile int interrupt = 4;
 const int ledPin = 13;
 
-boolean other = 0;
-int appState = 0;
-int buttonState = 0;         // current state of the button
-int lastButtonState = 0; 
+int appState = LOW; 
 
 String startTime;
+
+const int numOfLights = 24;
+
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(numOfLights, ledPin, NEO_GRB + NEO_KHZ800);
+
+
 
 void setup() {
   Serial.begin(9600);
   Bridge.begin();
   
   pinMode(ledPin, OUTPUT);
-  attachInterrupt(4, stop, RISING);
+  attachInterrupt(interrupt, buttonPress, RISING);
+  Serial.println("setup");
 }
 
-void stop() {
-  Serial.println("STOP");
+void buttonPress() {
+  if (appState == LOW) {
+    Serial.println("on");
+    startTime = getNow();
+  } else {
+    Serial.println("off");
+    String endTime = getNow();
+
+    Serial.println(startTime + " - " + endTime);
+  }
+
+  appState = !appState;
+}
+
+void setAllLights(uint32_t color) {
+  for(int i = 0; i < numOfLights; i++) {
+    strip.setPixelColor(i, color);
+    strip.show();
+  }
+}
+
+void setAllLightsRed(int brightness) {
+  setAllLights(strip.Color(brightness, 0 ,0));
+}
+
+int brightness = 0;
+int breathingSteps = 5;
+const int interval = 50;
+unsigned long previousMillis = 0;        // will store last time LED was updated
+
+void breathe() {
+
+  unsigned long currentMillis = millis();
+ 
+  if(currentMillis - previousMillis >= interval) {
+    // save the last time you blinked the LED 
+    previousMillis = currentMillis;   
+
+    setAllLightsRed(brightness);
+
+    brightness = brightness + breathingSteps;
+
+    if (brightness == 0 || brightness == 125) {
+      breathingSteps = -breathingSteps;
+    }
+    
+  }
+
 }
 
 void loop() {
-
-  buttonState = digitalRead(buttonPin);
-
-  if ((buttonState != lastButtonState) && (buttonState == HIGH)) {
-    appState = digitalRead(led);
-    digitalWrite(led, !appState);
-    if (other == false) {
-      digitalWrite(led, HIGH);
-      startTime = getNow();
-    } else {
-      digitalWrite(led, LOW);
-      String stopTime = getNow();
-      // addTimeGroup(startTime, stopTime);
-      Serial.println(startTime);
-      Serial.println(stopTime);
-    }
-    other = !other;
+  setAllLightsRed(255);
+  Serial.println("WASD");
+  if (appState == LOW) {
+    setAllLights(strip.Color(0, 0, 0));
   } else {
-    Serial.println("off"); 
+    breathe();
   }
-  lastButtonState = buttonState;
-
-  if (appActive == false ) {
-    // do reminder stuff here;
-  }
-
 }
 
 String getNow() {
