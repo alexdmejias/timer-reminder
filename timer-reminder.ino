@@ -5,21 +5,22 @@
 #include "TembooAccount.h" // contains Temboo account information, as described below
 
 volatile int interrupt = 4;
-const int ledPin = 6;
-
 int appState = LOW; 
 
-String startTime;
+String startTime = "";
+String endTime = "";
+Process date;
 
+const int ledPin = 6;
 const int numOfLights = 24;
-
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(numOfLights, ledPin, NEO_GRB + NEO_KHZ800);
 
+// Breathing related variables
 int brightness = 0;
 int breathingSteps = 1;
-const int interval = 100;
-const int maxBrightness = 100;
-unsigned long previousMillis = 0;        // will store last time LED was updated
+const int breathingInterval = 100;
+const int breathingMaxBrightness = 100;
+unsigned long breathingPreviousMillis = 0;        // will store last time LED was updated
 
 void setup() {
   Serial.begin(9600);
@@ -28,18 +29,24 @@ void setup() {
   pinMode(ledPin, OUTPUT);
   attachInterrupt(interrupt, buttonPress, RISING);
   Serial.println("setup");
+
+  while (!Serial);              // wait for Serial Monitor to open
+  Serial.println("Time Check");
+  String now = getNow();
+  Serial.println(now);
 }
 
 void buttonPress() {
   Serial.print("button press");
   if (appState == LOW) {
-    Serial.println("ooff");
-    // startTime = getNow();
-    brightness = 0;
-  } else {
     Serial.println("on");
-    // String endTime = getNow();
-    // Serial.println(startTime + " - " + endTime);
+    setAllLightsRed(255);
+
+//    startTime = getNow();
+  } else {
+    Serial.println("off");
+    setAllLightsRed(0);
+    
   }
 
   appState = !appState;
@@ -57,36 +64,50 @@ void setAllLightsRed(int brightness) {
 }
 
 void breathe() {
-  unsigned long currentMillis = millis();
-  if(currentMillis - previousMillis >= interval) {
-    previousMillis = currentMillis;   
-    setAllLightsRed(brightness);
-    brightness = brightness + breathingSteps;
-    if (brightness == 0 || brightness == maxBrightness) {
-      breathingSteps = -breathingSteps;
+  if (appState == HIGH) {
+    unsigned long currentMillis = millis();
+    if(currentMillis - breathingPreviousMillis >= breathingInterval) {
+      breathingPreviousMillis = currentMillis;   
+      setAllLightsRed(brightness);
+      brightness = brightness + breathingSteps;
+      if (brightness == 0 || brightness == breathingMaxBrightness) {
+        breathingSteps = -breathingSteps;
+      }
     }
   }
 }
 
-void loop() {
-  if (appState == LOW) {
-    setAllLights(strip.Color(0, 0, 0));
-  } else {
-    breathe();
+void printData() {
+  Serial.println(startTime + "-" + endTime);
+  if (startTime !="" && endTime != "") {
+    Serial.println("=========>" + startTime + "-" + endTime);
+    startTime = "";
   }
 }
 
-String getNow() {
-  Process date;
+void loop() {
+  // if (appState == LOW) {
+  //   setAllLights(strip.Color(0, 0, 0));
+  // } else {
+  //   breathe();
+  // }
+  // printData();
+}
 
+String getNow() {
   if (!date.running()) {
     date.begin("date");
     date.addParameter("+%m/%d/%Y %T");
     date.run();
   }
 
-  String now = date.readString();
-
+  String now;
+  if (date.available() > 0) {
+    now = date.readString();
+  } else {
+    now = "no date";
+  }
+  
   return now;
 }
 
@@ -122,3 +143,4 @@ String getNow() {
 //   }
 //   AppendRowChoreo.close();
 // }
+
