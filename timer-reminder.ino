@@ -4,11 +4,12 @@
 #include <Temboo.h>
 #include "TembooAccount.h" // contains Temboo account information, as described below
 
-volatile int interrupt = 4;
-int appState = LOW; 
+int interrupt = 4;
+volatile int appState = LOW;
+volatile boolean actedOnStateChange = true;
 
-String startTime = "";
-String endTime = "";
+String startTime;
+String endTime;
 Process date;
 
 const int ledPin = 6;
@@ -16,11 +17,11 @@ const int numOfLights = 24;
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(numOfLights, ledPin, NEO_GRB + NEO_KHZ800);
 
 // Breathing related variables
-int brightness = 0;
-int breathingSteps = 1;
-const int breathingInterval = 100;
-const int breathingMaxBrightness = 100;
-unsigned long breathingPreviousMillis = 0;        // will store last time LED was updated
+int brightness = 0;  // will store the brightness of the lights
+int breathingSteps = 1; // how much brightness to add on each step
+const int breathingInterval = 10; // amount of milliseconds per step
+const int breathingMaxBrightness = 200; // maximum brightness
+unsigned long breathingPreviousMillis = 0; // will store last time LED was updated
 
 void setup() {
   Serial.begin(9600);
@@ -30,26 +31,47 @@ void setup() {
   attachInterrupt(interrupt, buttonPress, RISING);
   Serial.println("setup");
 
-  while (!Serial);              // wait for Serial Monitor to open
-  Serial.println("Time Check");
+//  while (!Serial);              // wait for Serial Monitor to open
+//  Serial.println("Time Check");
   String now = getNow();
   Serial.println(now);
 }
 
 void buttonPress() {
-  Serial.print("button press");
-  if (appState == LOW) {
-    Serial.println("on");
-    setAllLightsRed(255);
+  actedOnStateChange = false;
+  appState = !appState; // toggle the app state
+}
 
-//    startTime = getNow();
-  } else {
-    Serial.println("off");
+void loop() {
+  if (appState == LOW) { 
     setAllLightsRed(0);
-    
+  } else {
+    breathe();
   }
+  if (actedOnStateChange == false) {
+    if (appState == HIGH) {
+      Serial.println("HIGH");  
+    }
+    
+    if (startTime.length() < 1) {
+      Serial.println("no start time");
+    }
+    
+    if (startTime.length() < 1 && appState == HIGH) {
+      startTime = getNow();
+      Serial.println("saving startTime");
+    } 
 
-  appState = !appState;
+    if (startTime.length() > 1 && appState == LOW) {
+      endTime = getNow();
+    }
+
+    if (startTime.length() > 1 && endTime.length() > 1 && appState == LOW) {
+      addTimeGroup(startTime, endTime);
+    }
+    actedOnStateChange = true;
+  }
+  
 }
 
 void setAllLights(uint32_t color) {
@@ -60,38 +82,19 @@ void setAllLights(uint32_t color) {
 }
 
 void setAllLightsRed(int brightness) {
-  setAllLights(strip.Color(brightness, 0 ,0));
+  setAllLights(strip.Color(brightness, 0, 0));
 }
 
 void breathe() {
-  if (appState == HIGH) {
-    unsigned long currentMillis = millis();
-    if(currentMillis - breathingPreviousMillis >= breathingInterval) {
-      breathingPreviousMillis = currentMillis;   
-      setAllLightsRed(brightness);
-      brightness = brightness + breathingSteps;
-      if (brightness == 0 || brightness == breathingMaxBrightness) {
-        breathingSteps = -breathingSteps;
-      }
+  unsigned long currentMillis = millis();
+  if (currentMillis - breathingPreviousMillis >= breathingInterval) {
+    breathingPreviousMillis = currentMillis;   
+    setAllLightsRed(brightness);
+    brightness = brightness + breathingSteps;
+    if (brightness == 0 || brightness == breathingMaxBrightness) {
+      breathingSteps = -breathingSteps;
     }
   }
-}
-
-void printData() {
-  Serial.println(startTime + "-" + endTime);
-  if (startTime !="" && endTime != "") {
-    Serial.println("=========>" + startTime + "-" + endTime);
-    startTime = "";
-  }
-}
-
-void loop() {
-  // if (appState == LOW) {
-  //   setAllLights(strip.Color(0, 0, 0));
-  // } else {
-  //   breathe();
-  // }
-  // printData();
 }
 
 String getNow() {
@@ -107,40 +110,48 @@ String getNow() {
   } else {
     now = "no date";
   }
-  
+
+  Serial.println("returning:" + now);
   return now;
 }
 
-// void addTimeGroup(String start, String stop) {
-      
-//   String times = start + "," + stop;
-//   TembooChoreo AppendRowChoreo;
+void addTimeGroup(String start, String stop) {
+  Serial.println(start);
+  String times = start + "," + stop;
+  TembooChoreo AppendRowChoreo;
 
-//   // Invoke the Temboo client
-//   AppendRowChoreo.begin();
+  // Invoke the Temboo client
+  AppendRowChoreo.begin();
 
-//   // Set Temboo account credentials
-//   AppendRowChoreo.setAccountName(TEMBOO_ACCOUNT);
-//   AppendRowChoreo.setAppKeyName(TEMBOO_APP_KEY_NAME);
-//   AppendRowChoreo.setAppKey(TEMBOO_APP_KEY);
+  // Set Temboo account credentials
+  AppendRowChoreo.setAccountName(TEMBOO_ACCOUNT);
+  AppendRowChoreo.setAppKeyName(TEMBOO_APP_KEY_NAME);
+  AppendRowChoreo.setAppKey(TEMBOO_APP_KEY);
   
-//   // Set Choreo inputs
-//   AppendRowChoreo.addInput("ClientSecret", "SeLpeYgt4IhTN9-6m7Bv9pUr");
-//   AppendRowChoreo.addInput("RefreshToken", "1/Uzqnw135kVmiXxMwYl-dLesOq9CXCqO1NYRZBhx2k58");
-//   AppendRowChoreo.addInput("RowData", times);
-//   AppendRowChoreo.addInput("SpreadsheetTitle", "temboo-test");
-//   AppendRowChoreo.addInput("ClientID", "780256191844-t2hp4ibf3j6be7d8ecnhkmliavlmcgam.apps.googleusercontent.com");
+  // Set Choreo inputs
+  AppendRowChoreo.addInput("ClientSecret", "SeLpeYgt4IhTN9-6m7Bv9pUr");
+  AppendRowChoreo.addInput("RefreshToken", "1/Uzqnw135kVmiXxMwYl-dLesOq9CXCqO1NYRZBhx2k58");
+  AppendRowChoreo.addInput("RowData", times);
+  AppendRowChoreo.addInput("SpreadsheetTitle", "temboo-test");
+  AppendRowChoreo.addInput("ClientID", "780256191844-t2hp4ibf3j6be7d8ecnhkmliavlmcgam.apps.googleusercontent.com");
   
-//   // Identify the Choreo to run
-//   AppendRowChoreo.setChoreo("/Library/Google/Spreadsheets/AppendRow");
+  // Identify the Choreo to run
+  AppendRowChoreo.setChoreo("/Library/Google/Spreadsheets/AppendRow");
   
-//   // Run the Choreo; when results are available, print them to serial
-//   AppendRowChoreo.run();
+  // Run the Choreo; when results are available, print them to serial
+  AppendRowChoreo.run();
   
-//   while(AppendRowChoreo.available()) {
-//     char c = AppendRowChoreo.read();
-//     Serial.print(c);
-//   }
-//   AppendRowChoreo.close();
-// }
+  while(AppendRowChoreo.available()) {
+    char c = AppendRowChoreo.read();
+    Serial.println(c);
+  }
+
+  startTime = "";
+  endTime = "";
+  AppendRowChoreo.close();
+}
+
+
+
+
 
