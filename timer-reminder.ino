@@ -4,7 +4,7 @@
 #include <Temboo.h>
 #include "TembooAccount.h" // contains Temboo account information, as described below
 
-int interrupt = 4;
+int interruptIndex = 4;
 volatile int appState = LOW;
 volatile boolean actedOnStateChange = true;
 
@@ -28,38 +28,18 @@ void setup() {
   Bridge.begin();
   
   pinMode(ledPin, OUTPUT);
-  attachInterrupt(interrupt, buttonPress, RISING);
-  Serial.println("setup");
-
-//  while (!Serial);              // wait for Serial Monitor to open
-//  Serial.println("Time Check");
-  String now = getNow();
-  Serial.println(now);
+  attachInterrupt(interruptIndex, onInterrupt, RISING);
 }
 
-void buttonPress() {
+void onInterrupt() {
   actedOnStateChange = false;
   appState = !appState; // toggle the app state
 }
 
 void loop() {
-  if (appState == LOW) { 
-    setAllLightsRed(0);
-  } else {
-    breathe();
-  }
   if (actedOnStateChange == false) {
-    if (appState == HIGH) {
-      Serial.println("HIGH");  
-    }
-    
-    if (startTime.length() < 1) {
-      Serial.println("no start time");
-    }
-    
     if (startTime.length() < 1 && appState == HIGH) {
       startTime = getNow();
-      Serial.println("saving startTime");
     } 
 
     if (startTime.length() > 1 && appState == LOW) {
@@ -70,6 +50,12 @@ void loop() {
       addTimeGroup(startTime, endTime);
     }
     actedOnStateChange = true;
+  }
+
+  if (appState == LOW) { 
+    setAllLightsRed(0);
+  } else {
+    breathe();
   }
   
 }
